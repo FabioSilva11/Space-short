@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/game_enums.dart';
+import 'missions_service.dart';
+import 'vault_service.dart';
 
 class PlayerProgress {
   const PlayerProgress({
@@ -79,5 +81,7 @@ class PlayerProgressStore {
     if (win) {
       await prefs.setInt('bestLevel', max(prefs.getInt('bestLevel') ?? 1, level));
     }
+    await MissionsService.addProgress(kills: max(1, coinsEarned ~/ 2), coins: coinsEarned, bosses: win ? 1 : 0);
+    await VaultService.depositFromRun(coinsEarned);
   }
 }
