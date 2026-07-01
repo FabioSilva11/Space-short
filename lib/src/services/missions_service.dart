@@ -31,7 +31,8 @@ class MissionsService {
         'weekly_bosses' => bosses,
         _ => 0,
       };
-      return mission.copyWith(progress: (mission.progress + gain).clamp(0, mission.target));
+      final nextProgress = (mission.progress + gain).clamp(0, mission.target).toInt();
+      return mission.copyWith(progress: nextProgress);
     }).toList();
     await _saveSplit(prefs, updated);
   }
