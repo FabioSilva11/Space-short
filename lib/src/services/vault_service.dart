@@ -19,14 +19,14 @@ class VaultService {
     final level = prefs.getInt('vaultLevel') ?? 1;
     final stored = prefs.getInt('vaultCoins') ?? 0;
     final capacity = 1000 + level * 750;
-    return VaultSnapshot(level: level, storedCoins: stored.clamp(0, capacity), capacity: capacity, canOpen: stored >= capacity);
+    return VaultSnapshot(level: level, storedCoins: stored.clamp(0, capacity).toInt(), capacity: capacity, canOpen: stored >= capacity);
   }
 
   static Future<void> depositFromRun(int coinsEarned) async {
     final prefs = await SharedPreferences.getInstance();
     final snapshot = await load();
     final deposit = (coinsEarned * 0.25).round();
-    final next = (snapshot.storedCoins + deposit).clamp(0, snapshot.capacity);
+    final next = (snapshot.storedCoins + deposit).clamp(0, snapshot.capacity).toInt();
     await prefs.setInt('vaultCoins', next);
   }
 
