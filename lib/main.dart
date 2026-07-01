@@ -74,28 +74,30 @@ class _MainMenuPageState extends State<MainMenuPage> {
     final prefs = await SharedPreferences.getInstance();
     if (type == WeaponType.spread && weapon != type && coins >= 2800) {
       await prefs.setInt('coins', coins - 2800);
-    }
-    if (type == WeaponType.laser && weapon != type && diamonds >= 650) {
+    } else if (type == WeaponType.laser && weapon != type && diamonds >= 650) {
       await prefs.setInt('diamonds', diamonds - 650);
-    }
-    if (type == WeaponType.homing && weapon != type && diamonds >= 900) {
+    } else if (type == WeaponType.homing && weapon != type && diamonds >= 900) {
       await prefs.setInt('diamonds', diamonds - 900);
+    } else if (type != WeaponType.vulcan && weapon != type) {
+      return;
     }
     await prefs.setInt('weapon', type.index);
     await _load();
   }
 
   void _play() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => GamePage(
-          weapon: weapon,
-          healthLevel: healthLevel,
-          fireRateLevel: fireRateLevel,
-          shieldLevel: shieldLevel,
-        ),
-      ),
-    ).then((_) => _load());
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => GamePage(
+              weapon: weapon,
+              healthLevel: healthLevel,
+              fireRateLevel: fireRateLevel,
+              shieldLevel: shieldLevel,
+            ),
+          ),
+        )
+        .then((_) => _load());
   }
 
   @override
@@ -118,27 +120,23 @@ class _MainMenuPageState extends State<MainMenuPage> {
                 const Text(
                   'SPACE SHORT',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 3),
+                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: 3),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text('🪙 $coins    💎 $diamonds    Recorde: Setor $bestLevel', textAlign: TextAlign.center),
                 const Spacer(),
                 FilledButton(onPressed: _play, child: const Text('JOGAR')),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _UpgradeButton(label: 'Vida', level: healthLevel, cost: 450 + healthLevel * 350, onTap: () => _upgrade('healthLevel', healthLevel, 450 + healthLevel * 350)),
                 _UpgradeButton(label: 'Taxa de Tiro', level: fireRateLevel, cost: 500 + fireRateLevel * 380, onTap: () => _upgrade('fireRateLevel', fireRateLevel, 500 + fireRateLevel * 380)),
                 _UpgradeButton(label: 'Escudo', level: shieldLevel, cost: 520 + shieldLevel * 390, onTap: () => _upgrade('shieldLevel', shieldLevel, 520 + shieldLevel * 390)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 const Text('Arsenal', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Wrap(
                   spacing: 8,
                   alignment: WrapAlignment.center,
                   children: WeaponType.values.map((type) {
-                    return ChoiceChip(
-                      label: Text(type.label),
-                      selected: weapon == type,
-                      onSelected: (_) => _equipWeapon(type),
-                    );
+                    return ChoiceChip(label: Text(type.label), selected: weapon == type, onSelected: (_) => _equipWeapon(type));
                   }).toList(),
                 ),
                 const SizedBox(height: 8),
@@ -164,10 +162,7 @@ class _UpgradeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: OutlinedButton(
-        onPressed: level >= 6 ? null : onTap,
-        child: Text('$label  Nv. $level/6  •  $cost 🪙'),
-      ),
+      child: OutlinedButton(onPressed: level >= 6 ? null : onTap, child: Text('$label  Nv. $level/6  •  $cost 🪙')),
     );
   }
 }
@@ -207,11 +202,13 @@ extension WeaponTypeLabel on WeaponType {
       };
 }
 
+enum EnemyKind { pink, green, elite }
+
 enum PowerUpType { weaponUp, life, bomb, instantLaser, shield }
 
 enum GamePhase { running, bossWarning, bossFight, completed, gameOver }
 
-class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
+class SpaceShortGame extends FlameGame with PanDetector, TapDetector, HasCollisionDetection {
   SpaceShortGame({required this.weapon, required this.healthLevel, required this.fireRateLevel, required this.shieldLevel, required this.onExit});
 
   final WeaponType weapon;
@@ -219,7 +216,7 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
   final int fireRateLevel;
   final int shieldLevel;
   final VoidCallback onExit;
-  final rng = Random();
+  final Random rng = Random();
 
   late PlayerShip player;
   GamePhase phase = GamePhase.running;
@@ -233,7 +230,6 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
   int kills = 0;
   int shotLevel = 1;
   int killsSinceDrop = 0;
-  bool revived = false;
 
   @override
   Color backgroundColor() => const Color(0xFF02040A);
@@ -273,27 +269,19 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
 
   void _spawnEnemies(double dt) {
     enemySpawnTimer -= dt;
-    final sectorMod = _sectorSpawnModifier;
     if (enemySpawnTimer > 0) return;
-    enemySpawnTimer = 0.75 * sectorMod;
-    final typeRoll = rng.nextDouble();
-    final enemy = EnemyShip(
-      kind: typeRoll > 0.82 ? EnemyKind.elite : typeRoll > 0.45 ? EnemyKind.green : EnemyKind.pink,
-      level: level,
-    )..position = Vector2(32 + rng.nextDouble() * (size.x - 64), -30);
-    add(enemy);
+    enemySpawnTimer = 0.75 * _sectorSpawnModifier;
+    final roll = rng.nextDouble();
+    add(EnemyShip(kind: roll > 0.82 ? EnemyKind.elite : roll > 0.45 ? EnemyKind.green : EnemyKind.pink, level: level)..position = Vector2(32 + rng.nextDouble() * (size.x - 64), -30));
   }
 
-  double get _sectorSpawnModifier => switch ((level - 1) % 4) {
-        1 => 0.72,
-        2 => 1.12,
-        3 => 0.82,
-        _ => 1.0,
-      };
+  double get _sectorSpawnModifier => switch ((level - 1) % 4) { 1 => 0.72, 2 => 1.12, 3 => 0.82, _ => 1.0 };
 
   void _spawnBoss() {
     phase = GamePhase.bossFight;
-    children.whereType<EnemyShip>().forEach((enemy) => enemy.removeFromParent());
+    for (final enemy in children.whereType<EnemyShip>()) {
+      enemy.removeFromParent();
+    }
     add(BossShip(level: level)..position = Vector2(size.x / 2, 90));
   }
 
@@ -316,11 +304,10 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
 
   void _dropPowerUp(Vector2 position) {
     if (children.whereType<PowerUp>().length >= 5) return;
-    final available = <PowerUpType>[PowerUpType.weaponUp, PowerUpType.bomb, PowerUpType.instantLaser, PowerUpType.shield];
-    if (player.health < player.maxHealth) available.add(PowerUpType.life);
     final roll = rng.nextDouble();
-    final type = roll < 0.48 ? PowerUpType.weaponUp : roll < 0.68 ? PowerUpType.life : roll < 0.83 ? PowerUpType.bomb : roll < 0.95 ? PowerUpType.instantLaser : PowerUpType.shield;
-    add(PowerUp(type: available.contains(type) ? type : PowerUpType.weaponUp)..position = position);
+    var type = roll < 0.48 ? PowerUpType.weaponUp : roll < 0.68 ? PowerUpType.life : roll < 0.83 ? PowerUpType.bomb : roll < 0.95 ? PowerUpType.instantLaser : PowerUpType.shield;
+    if (type == PowerUpType.life && player.health >= player.maxHealth) type = PowerUpType.weaponUp;
+    add(PowerUp(type: type)..position = position);
   }
 
   void collectPowerUp(PowerUpType type) {
@@ -332,8 +319,12 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
       case PowerUpType.life:
         player.health = min(player.maxHealth, player.health + player.maxHealth * 0.1);
       case PowerUpType.bomb:
-        children.whereType<EnemyBullet>().forEach((b) => b.removeFromParent());
-        children.whereType<EnemyShip>().forEach((enemy) => enemy.takeDamage(85));
+        for (final bullet in children.whereType<EnemyBullet>()) {
+          bullet.removeFromParent();
+        }
+        for (final enemy in children.whereType<EnemyShip>()) {
+          enemy.takeDamage(85);
+        }
         for (final boss in children.whereType<BossShip>()) {
           boss.takeDamage(85);
         }
@@ -370,8 +361,8 @@ class SpaceShortGame extends FlameGame with PanDetector, HasCollisionDetection {
   void onPanUpdate(DragUpdateInfo info) {
     if (phase == GamePhase.completed || phase == GamePhase.gameOver) return;
     player.position += info.delta.global;
-    player.position.x = player.position.x.clamp(28, size.x - 28);
-    player.position.y = player.position.y.clamp(60, size.y - 42);
+    player.position.x = player.position.x.clamp(28, size.x - 28).toDouble();
+    player.position.y = player.position.y.clamp(60, size.y - 42).toDouble();
   }
 
   @override
@@ -395,7 +386,7 @@ class PlayerShip extends PositionComponent with HasGameRef<SpaceShortGame>, Coll
   @override
   Future<void> onLoad() async {
     health = maxHealth;
-    add(CircleHitbox(radius: 18, anchor: Anchor.center, position: size / 2));
+    add(RectangleHitbox());
   }
 
   @override
@@ -413,14 +404,13 @@ class PlayerShip extends PositionComponent with HasGameRef<SpaceShortGame>, Coll
     if (instantLaserTimer > 0 || weapon == WeaponType.laser) {
       final count = min(3, 1 + level ~/ 2);
       for (var i = 0; i < count; i++) {
-        gameRef.add(PlayerBullet(position: position + Vector2((i - (count - 1) / 2) * 14, -28), velocity: Vector2(0, -560), damage: instantLaserTimer > 0 ? 16 : 22, pierce: true, color: const Color(0xFF35F6FF)));
+        gameRef.add(PlayerBullet(position: position + Vector2((i - (count - 1) / 2) * 14, -28), velocity: Vector2(0, -560), damage: instantLaserTimer > 0 ? 16 : 22, color: const Color(0xFF35F6FF), pierce: true));
       }
       return;
     }
     if (weapon == WeaponType.homing) {
-      final count = min(4, level);
-      for (var i = 0; i < count; i++) {
-        gameRef.add(HomingBullet(position: position + Vector2((i - (count - 1) / 2) * 12, -24)));
+      for (var i = 0; i < min(4, level); i++) {
+        gameRef.add(HomingBullet(position: position + Vector2((i - (level - 1) / 2) * 12, -24)));
       }
       return;
     }
@@ -442,19 +432,16 @@ class PlayerShip extends PositionComponent with HasGameRef<SpaceShortGame>, Coll
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFF6C63FF);
     final path = Path()
       ..moveTo(size.x / 2, 0)
       ..lineTo(size.x, size.y)
       ..lineTo(size.x / 2, size.y * 0.78)
       ..lineTo(0, size.y)
       ..close();
-    canvas.drawPath(path, paint);
-    canvas.drawCircle(Offset(size.x / 2, size.y * 0.55), 7, Paint()..color = const Color(0xFFFFFFFF));
+    canvas.drawPath(path, Paint()..color = const Color(0xFF6C63FF));
+    canvas.drawCircle(Offset(size.x / 2, size.y * 0.55), 7, Paint()..color = Colors.white);
   }
 }
-
-enum EnemyKind { pink, green, elite }
 
 class EnemyShip extends PositionComponent with HasGameRef<SpaceShortGame>, CollisionCallbacks {
   EnemyShip({required this.kind, required this.level}) : super(size: Vector2(38, 38), anchor: Anchor.center);
@@ -467,7 +454,7 @@ class EnemyShip extends PositionComponent with HasGameRef<SpaceShortGame>, Colli
   @override
   Future<void> onLoad() async {
     health = (kind == EnemyKind.elite ? 42 : 32) + level * 3;
-    add(CircleHitbox(radius: 17, anchor: Anchor.center, position: size / 2));
+    add(RectangleHitbox());
   }
 
   @override
@@ -486,8 +473,8 @@ class EnemyShip extends PositionComponent with HasGameRef<SpaceShortGame>, Colli
     final count = kind == EnemyKind.pink ? 1 : kind == EnemyKind.green ? 2 : 3;
     for (var i = 0; i < count; i++) {
       final angle = (i - (count - 1) / 2) * 0.18;
-      final v = Vector2(dir.x * cos(angle) - dir.y * sin(angle), dir.x * sin(angle) + dir.y * cos(angle)) * 180;
-      gameRef.add(EnemyBullet(position: position.clone(), velocity: v));
+      final velocity = Vector2(dir.x * cos(angle) - dir.y * sin(angle), dir.x * sin(angle) + dir.y * cos(angle)) * 180;
+      gameRef.add(EnemyBullet(position: position.clone(), velocity: velocity));
     }
   }
 
@@ -502,8 +489,7 @@ class EnemyShip extends PositionComponent with HasGameRef<SpaceShortGame>, Colli
   @override
   void render(Canvas canvas) {
     final color = switch (kind) { EnemyKind.pink => const Color(0xFFFF4FD8), EnemyKind.green => const Color(0xFF4DFF88), EnemyKind.elite => const Color(0xFFFF884D) };
-    final paint = Paint()..color = color;
-    canvas.drawRRect(RRect.fromRectAndRadius(size.toRect(), const Radius.circular(10)), paint);
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(10)), Paint()..color = color);
     canvas.drawCircle(Offset(size.x / 2, size.y / 2), 6, Paint()..color = Colors.black54);
   }
 }
@@ -542,17 +528,27 @@ class BossShip extends PositionComponent with HasGameRef<SpaceShortGame>, Collis
       case 1:
         _fan(7, 210, const Color(0xFFFF4D6D));
       case 2:
-        for (var i = 0; i < 3; i++) gameRef.add(EnemyBullet(position: position + Vector2(0, i * 10), velocity: playerDir * (220 + i * 35), color: const Color(0xFFFFFFFF)));
+        for (var i = 0; i < 3; i++) {
+          gameRef.add(EnemyBullet(position: position + Vector2(0, i * 10), velocity: playerDir * (220 + i * 35), color: Colors.white));
+        }
       case 3:
         _circle(16, 135, const Color(0xFF63FFDA), phase: gameRef.runTime * 3);
       case 4:
-        for (var i = 0; i < 8; i++) gameRef.add(EnemyBullet(position: Vector2(30 + i * (gameRef.size.x - 60) / 7, position.y), velocity: Vector2(0, 170 + i * 10), color: const Color(0xFFB517FF)));
+        for (var i = 0; i < 8; i++) {
+          gameRef.add(EnemyBullet(position: Vector2(30 + i * (gameRef.size.x - 60) / 7, position.y), velocity: Vector2(0, 170 + i * 10), color: const Color(0xFFB517FF)));
+        }
       case 5:
-        for (var x = -2; x <= 2; x++) for (var y = 0; y < 2; y++) gameRef.add(EnemyBullet(position: position + Vector2(x * 22, y * 16), velocity: Vector2(0, 185), color: const Color(0xFFFF0000)));
+        for (var x = -2; x <= 2; x++) {
+          for (var y = 0; y < 2; y++) {
+            gameRef.add(EnemyBullet(position: position + Vector2(x * 22, y * 16), velocity: Vector2(0, 185), color: Colors.red));
+          }
+        }
       case 6:
-        for (var s = 0; s < 5; s++) gameRef.add(EnemyBullet(position: position.clone(), velocity: playerDir * (140 + s * 35), color: const Color(0xFF00B4D8)));
+        for (var s = 0; s < 5; s++) {
+          gameRef.add(EnemyBullet(position: position.clone(), velocity: playerDir * (140 + s * 35), color: const Color(0xFF00B4D8)));
+        }
       case 7:
-        _circle(8, 185, const Color(0xFFFFFFFF));
+        _circle(8, 185, Colors.white);
       default:
         _circle(10, 120, const Color(0xFF9D4EDD));
         _circle(10, 210, const Color(0xFF9D4EDD), phase: 0.3);
@@ -561,15 +557,15 @@ class BossShip extends PositionComponent with HasGameRef<SpaceShortGame>, Collis
 
   void _circle(int count, double speed, Color color, {double phase = 0}) {
     for (var i = 0; i < count; i++) {
-      final a = phase + i * pi * 2 / count;
-      gameRef.add(EnemyBullet(position: position.clone(), velocity: Vector2(cos(a), sin(a)) * speed, color: color));
+      final angle = phase + i * pi * 2 / count;
+      gameRef.add(EnemyBullet(position: position.clone(), velocity: Vector2(cos(angle), sin(angle)) * speed, color: color));
     }
   }
 
   void _fan(int count, double speed, Color color) {
     for (var i = 0; i < count; i++) {
-      final a = pi / 2 + (i - (count - 1) / 2) * 0.18;
-      gameRef.add(EnemyBullet(position: position.clone(), velocity: Vector2(cos(a), sin(a)) * speed, color: color));
+      final angle = pi / 2 + (i - (count - 1) / 2) * 0.18;
+      gameRef.add(EnemyBullet(position: position.clone(), velocity: Vector2(cos(angle), sin(angle)) * speed, color: color));
     }
   }
 
@@ -583,15 +579,15 @@ class BossShip extends PositionComponent with HasGameRef<SpaceShortGame>, Collis
 
   @override
   void render(Canvas canvas) {
-    canvas.drawRRect(RRect.fromRectAndRadius(size.toRect(), const Radius.circular(18)), Paint()..color = const Color(0xFF2A2356));
-    canvas.drawRect(Rect.fromLTWH(10, 10, (size.x - 20) * (health / 500).clamp(0, 1), 8), Paint()..color = const Color(0xFFFF4D6D));
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(18)), Paint()..color = const Color(0xFF2A2356));
+    canvas.drawRect(Rect.fromLTWH(10, 10, (size.x - 20) * (health / 500).clamp(0, 1).toDouble(), 8), Paint()..color = const Color(0xFFFF4D6D));
   }
 }
 
 class PlayerBullet extends CircleComponent with HasGameRef<SpaceShortGame>, CollisionCallbacks {
   PlayerBullet({required Vector2 position, required this.velocity, required this.damage, required Color color, this.pierce = false}) : super(position: position, radius: 4, anchor: Anchor.center, paint: Paint()..color = color);
 
-  final Vector2 velocity;
+  Vector2 velocity;
   final double damage;
   final bool pierce;
 
@@ -619,11 +615,11 @@ class HomingBullet extends PlayerBullet {
 
   @override
   void update(double dt) {
-    final targets = [...gameRef.children.whereType<EnemyShip>(), ...gameRef.children.whereType<BossShip>()];
+    final targets = <PositionComponent>[...gameRef.children.whereType<EnemyShip>(), ...gameRef.children.whereType<BossShip>()];
     if (targets.isNotEmpty) {
       targets.sort((a, b) => a.position.distanceTo(position).compareTo(b.position.distanceTo(position)));
       final desired = (targets.first.position - position).normalized() * 430;
-      velocity.setFrom(velocity..lerp(desired, 0.08));
+      velocity = velocity * 0.92 + desired * 0.08;
     }
     super.update(dt);
   }
@@ -692,8 +688,8 @@ class CollectStar extends CircleComponent with HasGameRef<SpaceShortGame>, Colli
 
   @override
   void update(double dt) {
-    final dist = position.distanceTo(gameRef.player.position);
-    if (dist < 130) velocity = (gameRef.player.position - position).normalized() * 260;
+    final distance = position.distanceTo(gameRef.player.position);
+    if (distance < 130) velocity = (gameRef.player.position - position).normalized() * 260;
     position += velocity * dt;
     velocity.y += 45 * dt;
     if (position.y > gameRef.size.y + 20) removeFromParent();
