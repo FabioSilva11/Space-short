@@ -16,6 +16,7 @@ import '../entities/player_bullet.dart';
 import '../entities/player_ship.dart';
 import '../entities/power_up.dart';
 import '../models/game_enums.dart';
+import '../services/audio_service.dart';
 import '../services/player_progress.dart';
 
 class SpaceShortGame extends FlameGame with PanDetector {
@@ -39,6 +40,7 @@ class SpaceShortGame extends FlameGame with PanDetector {
   double runTime = 0;
   double enemySpawnTimer = 0;
   double starTimer = 0;
+  bool bossAlertPlayed = false;
   int level = 1;
   int score = 0;
   int coinsEarned = 0;
@@ -53,6 +55,7 @@ class SpaceShortGame extends FlameGame with PanDetector {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    await SpaceShortAudio.preload();
     player = PlayerShip(
       maxHealth: 100 + healthLevel * 22,
       shield: shieldLevel * 16,
@@ -69,7 +72,13 @@ class SpaceShortGame extends FlameGame with PanDetector {
     if (phase == GamePhase.completed || phase == GamePhase.gameOver) return;
     runTime += dt;
     _spawnStars(dt);
-    if (phase == GamePhase.running && runTime >= 112) phase = GamePhase.bossWarning;
+    if (phase == GamePhase.running && runTime >= 112) {
+      phase = GamePhase.bossWarning;
+      if (!bossAlertPlayed) {
+        bossAlertPlayed = true;
+        SpaceShortAudio.playBossAlert();
+      }
+    }
     if (phase == GamePhase.bossWarning && runTime >= 120) _spawnBoss();
     if (phase == GamePhase.running || phase == GamePhase.bossWarning) _spawnEnemies(dt);
     _handleCollisions();
@@ -176,6 +185,7 @@ class SpaceShortGame extends FlameGame with PanDetector {
   }
 
   void collectPowerUp(PowerUpType type) {
+    SpaceShortAudio.playPowerUp();
     score += 100;
     coinsEarned += 10;
     switch (type) {
@@ -205,12 +215,14 @@ class SpaceShortGame extends FlameGame with PanDetector {
     score += 5000 * level;
     diamondsEarned += 2;
     level++;
+    SpaceShortAudio.playLevelPassed();
     _saveRun(win: true);
     add(CenterMessage(title: 'FASE CONCLUÍDA', subtitle: '+$diamondsEarned 💎  +$coinsEarned 🪙', action: 'TOCAR PARA VOLTAR'));
   }
 
   void _gameOver() {
     phase = GamePhase.gameOver;
+    SpaceShortAudio.playGameOver();
     _saveRun(win: false);
     add(CenterMessage(title: 'GAME OVER', subtitle: 'Abates: $kills • Score: $score', action: 'TOCAR PARA VOLTAR'));
   }
