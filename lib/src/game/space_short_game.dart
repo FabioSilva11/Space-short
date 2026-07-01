@@ -13,12 +13,13 @@ import '../components/hud_text.dart';
 import '../entities/boss_ship.dart';
 import '../entities/enemy_bullet.dart';
 import '../entities/enemy_ship.dart';
+import '../entities/player_bullet.dart';
 import '../entities/player_ship.dart';
 import '../entities/power_up.dart';
 import '../models/game_enums.dart';
 import '../services/player_progress.dart';
 
-class SpaceShortGame extends FlameGame with PanDetector, TapDetector {
+class SpaceShortGame extends FlameGame with PanDetector {
   SpaceShortGame({
     required this.weapon,
     required this.healthLevel,
@@ -72,6 +73,7 @@ class SpaceShortGame extends FlameGame with PanDetector, TapDetector {
     if (phase == GamePhase.running && runTime >= 112) phase = GamePhase.bossWarning;
     if (phase == GamePhase.bossWarning && runTime >= 120) _spawnBoss();
     if (phase == GamePhase.running || phase == GamePhase.bossWarning) _spawnEnemies(dt);
+    _handleCollisions();
     if (player.health <= 0) _gameOver();
   }
 
@@ -99,6 +101,55 @@ class SpaceShortGame extends FlameGame with PanDetector, TapDetector {
     }
     add(BossShip(level: level)..position = Vector2(size.x / 2, 90));
   }
+
+  void _handleCollisions() {
+    for (final bullet in children.whereType<PlayerBullet>().toList()) {
+      for (final enemy in children.whereType<EnemyShip>().toList()) {
+        if (_touching(bullet.position, enemy.position, bullet.radius + 20)) {
+          enemy.takeDamage(bullet.damage);
+          if (!bullet.pierce) bullet.removeFromParent();
+          break;
+        }
+      }
+      for (final boss in children.whereType<BossShip>().toList()) {
+        if (_touching(bullet.position, boss.position, bullet.radius + 48)) {
+          boss.takeDamage(bullet.damage);
+          if (!bullet.pierce) bullet.removeFromParent();
+        }
+      }
+    }
+
+    for (final bullet in children.whereType<EnemyBullet>().toList()) {
+      if (_touching(bullet.position, player.position, bullet.radius + 18)) {
+        player.takeDamage(5);
+        bullet.removeFromParent();
+      }
+    }
+
+    for (final enemy in children.whereType<EnemyShip>().toList()) {
+      if (_touching(enemy.position, player.position, 34)) {
+        player.takeDamage(enemy.kind == EnemyKind.elite ? 20 : 16);
+        enemy.removeFromParent();
+      }
+    }
+
+    for (final powerUp in children.whereType<PowerUp>().toList()) {
+      if (_touching(powerUp.position, player.position, powerUp.radius + 20)) {
+        collectPowerUp(powerUp.type);
+        powerUp.removeFromParent();
+      }
+    }
+
+    for (final star in children.whereType<CollectStar>().toList()) {
+      if (_touching(star.position, player.position, star.radius + 20)) {
+        score += 10;
+        coinsEarned += 1;
+        star.removeFromParent();
+      }
+    }
+  }
+
+  bool _touching(Vector2 a, Vector2 b, double distance) => a.distanceTo(b) <= distance;
 
   void enemyKilled(EnemyShip enemy) {
     kills++;
@@ -134,13 +185,13 @@ class SpaceShortGame extends FlameGame with PanDetector, TapDetector {
       case PowerUpType.life:
         player.health = min(player.maxHealth, player.health + player.maxHealth * 0.1);
       case PowerUpType.bomb:
-        for (final bullet in children.whereType<EnemyBullet>()) {
+        for (final bullet in children.whereType<EnemyBullet>().toList()) {
           bullet.removeFromParent();
         }
-        for (final enemy in children.whereType<EnemyShip>()) {
+        for (final enemy in children.whereType<EnemyShip>().toList()) {
           enemy.takeDamage(85);
         }
-        for (final boss in children.whereType<BossShip>()) {
+        for (final boss in children.whereType<BossShip>().toList()) {
           boss.takeDamage(85);
         }
       case PowerUpType.instantLaser:
@@ -175,10 +226,5 @@ class SpaceShortGame extends FlameGame with PanDetector, TapDetector {
     player.position += info.delta.global;
     player.position.x = player.position.x.clamp(28, size.x - 28).toDouble();
     player.position.y = player.position.y.clamp(60, size.y - 42).toDouble();
-  }
-
-  @override
-  void onTapDown(TapDownInfo info) {
-    if (phase == GamePhase.completed || phase == GamePhase.gameOver) onExit();
   }
 }
